@@ -1,0 +1,52 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ml-pipeline/.venv/
+ml-pipeline/.venv*/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Logs
+*.log
+
+# Local environment files
+.env
+.env.*
+
+# SQLite / local DBs
+*.db
+*.sqlite
+*.sqlite3
+ml-pipeline/experiments/*.db
+
+# ML artifacts and generated outputs
+ml-pipeline/experiments/**
+!ml-pipeline/experiments/.gitkeep
+ml-pipeline/data/processed/**
+!ml-pipeline/data/processed/.gitkeep
+
+# Optional local notebook outputs
+ml-pipeline/notebooks/.ipynb_checkpoints/
