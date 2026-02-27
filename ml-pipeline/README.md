@@ -8,9 +8,13 @@ Production-oriented, modular ML pipeline with FastAPI endpoints for ingestion, t
 - Feature engineering (`numeric_sum`, `numeric_mean`, `missing_count`)
 - Multi-model training and comparison (Linear/Logistic, Random Forest, Gradient Boosting, optional XGBoost)
 - Cross-validation + validation/test metrics
+- Built-in frontend (`/`) for upload, train, evaluate, predict, and experiment history
+- Run comparison UI (select Run A / Run B and compare metrics visually)
+- Demo dataset selector + one-click latest prediction payload loader
 - Local model registry and experiment metadata snapshots
 - Token-based API authentication
 - Prediction logging + lightweight drift checks
+- Explainability summaries (global feature importance + local per-record contribution hints)
 - Dockerized deployment
 
 ## Project Structure
@@ -56,6 +60,14 @@ Open frontend UI:
 - `http://127.0.0.1:8000/`
 - API docs remain at `http://127.0.0.1:8000/docs`
 
+## Frontend Quick Start
+From the UI (`/`):
+- Select a demo dataset from **Demo Dataset** (or upload your own CSV)
+- Set `target_column` and click **Run Pipeline**
+- Use **Evaluate Latest** to refresh metrics + explainability panels
+- Use **Refresh Runs** and **Compare Selected** to compare two runs visually
+- Use **Load Latest Payload** to auto-fill the predict JSON box
+
 ## Authentication
 Every protected endpoint requires:
 - Header: `Authorization: Bearer <API_TOKEN>`
@@ -75,6 +87,19 @@ Every protected endpoint requires:
 - Training/evaluation responses now include `explainability.global_feature_importance`
 - Prediction responses include `explainability.local` top feature contributions per record
 - Values are SHAP-style approximations derived from model coefficients/importances
+
+## Demo Data Included
+Located in `data/raw/`:
+- `sample_classification.csv`
+- `demo_classification.csv`
+- `demo_regression.csv`
+- `demo_finance_classification.csv`
+- `demo_predict_records.json`
+- `demo_finance_predict_records.json`
+
+Use target column:
+- Classification demos: `target`
+- Regression demo: `risk_score`
 
 ## Example Flow
 1. Upload data:
@@ -105,6 +130,18 @@ curl -X POST "http://localhost:8000/model/predict" \
   -H "Authorization: Bearer dev-token" \
   -H "Content-Type: application/json" \
   -d '{"records": [{"feature1": 5.1, "feature2": 3.5, "feature3": 1.4, "feature4": 0.2}]}'
+```
+
+4. Get one run details:
+```bash
+curl -X GET "http://localhost:8000/experiments/<run_id>" \
+  -H "Authorization: Bearer dev-token"
+```
+
+5. Load latest prediction payload:
+```bash
+curl -X GET "http://localhost:8000/predictions/latest" \
+  -H "Authorization: Bearer dev-token"
 ```
 
 ## Testing
