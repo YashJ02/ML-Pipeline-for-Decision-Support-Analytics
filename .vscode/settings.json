@@ -1,4 +1,0 @@
-{
-"python.defaultInterpreterPath": "${workspaceFolder}/ml-pipeline/.venv/Scripts/python.exe",
-"python-envs.defaultEnvManager": "ms-python.python:system"
-}
