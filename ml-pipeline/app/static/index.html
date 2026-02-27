@@ -156,6 +156,22 @@
       color: #6b7280;
       margin-top: 8px;
     }
+    .mini-list {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 12px;
+      color: #374151;
+      display: grid;
+      gap: 4px;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    @media (max-width: 760px) {
+      .compare-grid { grid-template-columns: 1fr; }
+    }
     @media (max-width: 960px) {
       .layout {
         grid-template-columns: 1fr;
@@ -251,6 +267,7 @@
           <div class="actions" style="margin-bottom:10px;">
             <button id="btnEvaluate" class="secondary">Evaluate Latest</button>
             <button id="btnExperiments" class="secondary">List Experiments</button>
+            <button id="btnLoadLatestPayload" class="secondary">Load Latest Payload</button>
           </div>
           <label for="predictRecords">Predict Records (JSON array)</label>
           <textarea id="predictRecords">[
@@ -263,6 +280,24 @@
   }
 ]</textarea>
           <div style="margin-top:10px;"><button id="btnPredict">Predict</button></div>
+        </div>
+
+        <div class="card">
+          <h3>4) Run History + Compare</h3>
+          <div class="actions" style="margin-bottom:10px;">
+            <button id="btnRefreshRuns" class="secondary">Refresh Runs</button>
+            <button id="btnCompareRuns" class="secondary">Compare Selected</button>
+          </div>
+          <div class="row">
+            <div>
+              <label for="runASelect">Run A</label>
+              <select id="runASelect"></select>
+            </div>
+            <div>
+              <label for="runBSelect">Run B</label>
+              <select id="runBSelect"></select>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -286,6 +321,22 @@
             <div class="metric-chart" id="cvChart"></div>
             <div class="viz-note">Blue = validation/CV, Green = test. Values are normalized to 0-1 for quick visual comparison.</div>
           </div>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;" />
+          <h3 style="margin:0 0 10px 0;">Explainability</h3>
+          <div id="explainEmpty" class="muted">Run train/evaluate/predict to view feature explanations.</div>
+          <div id="explainPanel" style="display:none;">
+            <div class="muted" style="margin-bottom:6px;">Global feature importance</div>
+            <ul id="globalImportanceList" class="mini-list"></ul>
+            <div style="height:10px;"></div>
+            <div class="muted" style="margin-bottom:6px;">Latest local prediction explanation</div>
+            <ul id="localExplainList" class="mini-list"></ul>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;" />
+          <h3 style="margin:0 0 10px 0;">Run Comparison</h3>
+          <div id="compareEmpty" class="muted">Select two runs and click Compare Selected.</div>
+          <div id="comparePanel" style="display:none;"></div>
         </div>
       </div>
     </div>
@@ -299,6 +350,14 @@
     const validationChart = document.getElementById("validationChart");
     const testChart = document.getElementById("testChart");
     const cvChart = document.getElementById("cvChart");
+    const explainEmpty = document.getElementById("explainEmpty");
+    const explainPanel = document.getElementById("explainPanel");
+    const globalImportanceList = document.getElementById("globalImportanceList");
+    const localExplainList = document.getElementById("localExplainList");
+    const compareEmpty = document.getElementById("compareEmpty");
+    const comparePanel = document.getElementById("comparePanel");
+    const runASelect = document.getElementById("runASelect");
+    const runBSelect = document.getElementById("runBSelect");
 
     function setBadge(state, text) {
       statusBadge.className = "badge";
@@ -329,12 +388,14 @@
       setBadge("success", "Success");
       output.textContent = `${label}\n\n${JSON.stringify(payload, null, 2)}`;
       renderMetrics(payload);
+      renderExplainability(payload);
     }
 
     function showError(error) {
       setBadge("error", "Error");
       output.textContent = `Error\n\n${error}`;
       clearMetrics();
+      clearExplainability();
     }
 
     function clearMetrics() {
@@ -343,6 +404,13 @@
       validationChart.innerHTML = "";
       testChart.innerHTML = "";
       cvChart.innerHTML = "";
+    }
+
+    function clearExplainability() {
+      explainPanel.style.display = "none";
+      explainEmpty.style.display = "block";
+      globalImportanceList.innerHTML = "";
+      localExplainList.innerHTML = "";
     }
 
     function metricItemHtml(label, value, isTest = false) {
@@ -409,6 +477,117 @@
 
       metricsEmpty.style.display = "none";
       metricsPanel.style.display = "block";
+    }
+
+    function renderExplainability(payload) {
+      const source = payload?.explainability || payload?.metadata?.explainability || {};
+      const global = source.global_feature_importance || source.global?.global_feature_importance || [];
+      const local = source.local || source.test_sample_explanations || [];
+
+      if (!global.length && !local.length) {
+        clearExplainability();
+        return;
+      }
+
+      globalImportanceList.innerHTML = global.slice(0, 8)
+        .map((item) => {
+          const feature = humanizeFeatureName(item.feature);
+          const pct = (Number(item.importance || 0) * 100).toFixed(1);
+          return `<li><strong>${feature}</strong>: ${pct}% influence on overall model decisions.</li>`;
+        })
+        .join("");
+
+      const firstLocal = local[0]?.top_features || [];
+      localExplainList.innerHTML = firstLocal.length
+        ? firstLocal.map((item) => {
+            const feature = humanizeFeatureName(item.feature);
+            const contribution = Number(item.contribution || 0);
+            const absContribution = Math.abs(contribution);
+            const strength = absContribution >= 1 ? "strong" : absContribution >= 0.4 ? "moderate" : "mild";
+            const direction = contribution >= 0 ? "increased" : "decreased";
+            return `<li><strong>${feature}</strong>: ${strength} ${direction} impact (${contribution.toFixed(4)}).</li>`;
+          }).join("")
+        : "<li>No local explanation available for this response.</li>";
+
+      explainEmpty.style.display = "none";
+      explainPanel.style.display = "block";
+    }
+
+    function humanizeFeatureName(rawName) {
+      const text = String(rawName || "feature")
+        .replace(/^num__|^cat__/, "")
+        .replace(/^feature_/, "feature ")
+        .replace(/_/g, " ")
+        .trim();
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+
+    function formatRunOption(run) {
+      const metricName = run.primary_metric || run.metrics?.primary_metric || "metric";
+      const metricValue = run.metrics?.test_metrics?.[metricName] ?? run.metrics?.validation_metrics?.[metricName];
+      const metricText = Number.isFinite(Number(metricValue)) ? Number(metricValue).toFixed(3) : "n/a";
+      return `${run.run_id} | ${run.model_name} | ${metricName}: ${metricText}`;
+    }
+
+    async function refreshRunHistory() {
+      const data = await callJson("/experiments", {
+        method: "GET",
+        headers: authHeaders(),
+      });
+
+      const items = data.items || [];
+      const options = items.map((run) => `<option value="${run.run_id}">${formatRunOption(run)}</option>`).join("");
+      runASelect.innerHTML = options;
+      runBSelect.innerHTML = options;
+      if (items.length > 1) {
+        runASelect.selectedIndex = 0;
+        runBSelect.selectedIndex = 1;
+      }
+      return items;
+    }
+
+    function comparisonMetricRows(label, a, b) {
+      const av = Number(a);
+      const bv = Number(b);
+      const as = Number.isFinite(av) ? av : 0;
+      const bs = Number.isFinite(bv) ? bv : 0;
+      const ap = Math.max(0, Math.min(1, as)) * 100;
+      const bp = Math.max(0, Math.min(1, bs)) * 100;
+
+      return `
+        <div class="metric-item"><strong>${label}</strong><span>A: ${Number.isFinite(av) ? av.toFixed(4) : "n/a"} | B: ${Number.isFinite(bv) ? bv.toFixed(4) : "n/a"}</span>
+          <div class="compare-grid" style="grid-column:1 / -1;">
+            <div class="bar-wrap"><div class="bar" style="width:${ap}%"></div></div>
+            <div class="bar-wrap"><div class="bar bar-test" style="width:${bp}%"></div></div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function compareRuns() {
+      const runA = runASelect.value;
+      const runB = runBSelect.value;
+      if (!runA || !runB) {
+        throw new Error("Select two runs first.");
+      }
+
+      const [a, b] = await Promise.all([
+        callJson(`/experiments/${runA}`, { method: "GET", headers: authHeaders() }),
+        callJson(`/experiments/${runB}`, { method: "GET", headers: authHeaders() }),
+      ]);
+
+      const aTest = a.metrics?.test_metrics || {};
+      const bTest = b.metrics?.test_metrics || {};
+      const keys = Array.from(new Set([...Object.keys(aTest), ...Object.keys(bTest)])).slice(0, 6);
+      const rows = keys.map((key) => comparisonMetricRows(key, aTest[key], bTest[key])).join("");
+
+      comparePanel.innerHTML = `
+        <div class="muted" style="margin-bottom:8px;">Blue = Run A (${runA}), Green = Run B (${runB})</div>
+        <div class="metric-chart">${rows || "<div class='muted'>No comparable test metrics found.</div>"}</div>
+      `;
+      compareEmpty.style.display = "none";
+      comparePanel.style.display = "block";
+      showResult("Run comparison", { run_a: a.run_id, run_b: b.run_id, compared_metrics: keys });
     }
 
     async function callJson(path, options = {}) {
@@ -529,11 +708,43 @@
 
     document.getElementById("btnExperiments").addEventListener("click", async () => {
       try {
-        const data = await callJson("/experiments", {
+        const items = await refreshRunHistory();
+        const data = { items };
+        showResult("Experiments", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnRefreshRuns").addEventListener("click", async () => {
+      try {
+        const items = await refreshRunHistory();
+        showResult("Run history refreshed", { count: items.length });
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnCompareRuns").addEventListener("click", async () => {
+      try {
+        await compareRuns();
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnLoadLatestPayload").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/predictions/latest", {
           method: "GET",
           headers: authHeaders(),
         });
-        showResult("Experiments", data);
+        document.getElementById("predictRecords").value = JSON.stringify(data.records || [], null, 2);
+        showResult("Loaded latest payload", {
+          run_id: data.run_id,
+          created_at: data.created_at,
+          records: (data.records || []).length,
+        });
       } catch (error) {
         showError(error.message || String(error));
       }
@@ -550,6 +761,15 @@
         showResult("Predict", data);
       } catch (error) {
         showError(error.message || String(error));
+      }
+    });
+
+    window.addEventListener("load", async () => {
+      try {
+        await refreshRunHistory();
+      } catch {
+        runASelect.innerHTML = "";
+        runBSelect.innerHTML = "";
       }
     });
   </script>

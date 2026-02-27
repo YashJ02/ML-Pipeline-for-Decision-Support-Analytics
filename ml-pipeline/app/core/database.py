@@ -108,6 +108,33 @@ def list_experiments(limit: int = 100) -> list[dict[str, Any]]:
     ]
 
 
+def get_experiment(run_id: str) -> dict[str, Any] | None:
+    with closing(_connect()) as conn:
+        row = conn.execute(
+            """
+            SELECT run_id, created_at, task_type, model_name, primary_metric,
+                   metrics_json, config_json, artifact_path
+            FROM experiments
+            WHERE run_id = ?
+            """,
+            (run_id,),
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "run_id": row["run_id"],
+        "created_at": row["created_at"],
+        "task_type": row["task_type"],
+        "model_name": row["model_name"],
+        "primary_metric": row["primary_metric"],
+        "metrics": json.loads(row["metrics_json"]),
+        "config": json.loads(row["config_json"]),
+        "artifact_path": row["artifact_path"],
+    }
+
+
 def log_prediction(
     *,
     created_at: str,
@@ -132,3 +159,27 @@ def log_prediction(
             ),
         )
         conn.commit()
+
+
+def get_latest_prediction_log() -> dict[str, Any] | None:
+    with closing(_connect()) as conn:
+        row = conn.execute(
+            """
+            SELECT id, created_at, model_version, payload_json, predictions_json, drift_json
+            FROM prediction_logs
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    if row is None:
+        return None
+
+    return {
+        "id": int(row["id"]),
+        "created_at": row["created_at"],
+        "model_version": row["model_version"],
+        "payload": json.loads(row["payload_json"]),
+        "predictions": json.loads(row["predictions_json"]),
+        "drift": json.loads(row["drift_json"]),
+    }

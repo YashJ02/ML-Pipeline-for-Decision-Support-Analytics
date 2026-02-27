@@ -68,6 +68,13 @@ Every protected endpoint requires:
 - `GET /model/evaluate` - Retrieve latest model metrics
 - `POST /model/predict` - Predict from JSON records
 - `GET /experiments` - List tracked experiments
+- `GET /experiments/{run_id}` - Get one run's full metadata (metrics + explainability)
+- `GET /predictions/latest` - Retrieve latest prediction payload for quick re-use
+
+### Explainability in Responses
+- Training/evaluation responses now include `explainability.global_feature_importance`
+- Prediction responses include `explainability.local` top feature contributions per record
+- Values are SHAP-style approximations derived from model coefficients/importances
 
 ## Example Flow
 1. Upload data:

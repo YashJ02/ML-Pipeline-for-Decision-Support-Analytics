@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,12 +11,23 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from app.core.config import get_settings
-from app.core.database import init_db, log_experiment, log_prediction
+from app.core.database import (
+    get_experiment,
+    get_latest_prediction_log,
+    init_db,
+    log_experiment,
+    log_prediction,
+)
 from app.core.state import pipeline_status
 from app.models.model_registry import ModelRegistry
 from app.models.trainer import train_candidates
 from app.pipelines.eda import generate_eda_artifacts
-from app.pipelines.evaluation import evaluate_predictions, primary_metric_name
+from app.pipelines.evaluation import (
+    evaluate_predictions,
+    primary_metric_name,
+    summarize_feature_importance,
+    summarize_prediction_explanations,
+)
 from app.pipelines.ingestion import load_dataset, validate_schema
 from app.utils.experiment import new_run_id, save_model, write_json
 from app.utils.monitoring import detect_distribution_drift, summarize_prediction_distribution
@@ -35,7 +47,10 @@ class PipelineService:
 
     def _resolve_dataset_path(self, dataset_path: str | None) -> Path:
         if dataset_path:
-            return Path(dataset_path)
+            candidate = Path(dataset_path)
+            if candidate.is_absolute():
+                return candidate
+            return self.settings.base_dir / candidate
 
         if self.latest_data_pointer.exists():
             latest_path = self.latest_data_pointer.read_text(encoding="utf-8").strip()
@@ -179,6 +194,13 @@ class PipelineService:
             best_result.model.fit(X_train_val, y_train_val)
             y_test_pred = best_result.model.predict(X_test)
             test_metrics = evaluate_predictions(task_type, y_test, y_test_pred)
+            explainability_payload = summarize_feature_importance(best_result.model)
+            sample_records = X_test.head(3).to_dict(orient="records")
+            explainability_payload["test_sample_explanations"] = summarize_prediction_explanations(
+                best_result.model,
+                sample_records,
+                top_k=5,
+            )
 
             created_at = self._timestamp()
             artifact_path = run_dir / "model.joblib"
@@ -214,6 +236,7 @@ class PipelineService:
                 "task_type": task_type,
                 "artifact_path": str(artifact_path),
                 "metrics": metrics_payload,
+                "explainability": explainability_payload,
                 "schema": schema,
                 "prediction_baseline": prediction_stats,
                 "eda_artifacts": eda_artifacts,
@@ -254,6 +277,7 @@ class PipelineService:
                 "model_name": best_result.model_name,
                 "task_type": task_type,
                 "metrics": metrics_payload,
+                "explainability": explainability_payload,
                 "eda_artifacts": eda_artifacts,
             }
 
@@ -273,6 +297,41 @@ class PipelineService:
             "model_name": metadata["model_name"],
             "task_type": metadata["task_type"],
             "metrics": metadata["metrics"],
+            "explainability": metadata.get("explainability", {}),
+        }
+
+    def get_run_details(self, run_id: str) -> dict[str, Any]:
+        metadata_path = self.settings.experiments_dir / run_id / "metadata.json"
+        if metadata_path.exists():
+            return json.loads(metadata_path.read_text(encoding="utf-8"))
+
+        experiment = get_experiment(run_id)
+        if experiment is None:
+            raise FileNotFoundError(f"Run '{run_id}' was not found.")
+
+        return {
+            "run_id": experiment["run_id"],
+            "created_at": experiment["created_at"],
+            "model_name": experiment["model_name"],
+            "task_type": experiment["task_type"],
+            "metrics": experiment["metrics"],
+            "config": experiment["config"],
+            "artifact_path": experiment["artifact_path"],
+            "explainability": {},
+        }
+
+    def latest_prediction_payload(self) -> dict[str, Any]:
+        latest = get_latest_prediction_log()
+        if latest is None:
+            raise FileNotFoundError("No prediction logs found yet.")
+
+        return {
+            "id": latest["id"],
+            "created_at": latest["created_at"],
+            "run_id": latest["model_version"],
+            "records": latest["payload"],
+            "predictions": latest["predictions"],
+            "drift": latest["drift"],
         }
 
     def predict(self, records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -287,6 +346,7 @@ class PipelineService:
         prediction_list = [
             value.item() if isinstance(value, np.generic) else value for value in predictions.tolist()
         ]
+        local_explanations = summarize_prediction_explanations(model, records, top_k=5)
 
         numeric_predictions = pd.Series(prediction_list).astype("category").cat.codes.to_list()
         current_distribution = summarize_prediction_distribution(numeric_predictions)
@@ -308,6 +368,10 @@ class PipelineService:
             "run_id": metadata["run_id"],
             "model_name": metadata["model_name"],
             "predictions": prediction_list,
+            "explainability": {
+                "global": metadata.get("explainability", {}),
+                "local": local_explanations,
+            },
             "drift": drift,
             "created_at": created_at,
         }

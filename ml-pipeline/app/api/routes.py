@@ -90,3 +90,19 @@ def predict(request: PredictRequest, _: str = Depends(verify_token)):
 @router.get("/experiments")
 def experiments(limit: int = 100, _: str = Depends(verify_token)):
     return {"items": list_experiments(limit=limit)}
+
+
+@router.get("/experiments/{run_id}")
+def experiment_details(run_id: str, _: str = Depends(verify_token)):
+    try:
+        return service.get_run_details(run_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/predictions/latest")
+def latest_prediction_payload(_: str = Depends(verify_token)):
+    try:
+        return service.latest_prediction_payload()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

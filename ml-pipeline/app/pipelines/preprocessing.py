@@ -28,3 +28,8 @@ class IQRClipper(BaseEstimator, TransformerMixin):
             upper = self.upper_bounds_.get(column, np.inf)
             data[column] = data[column].clip(lower=lower, upper=upper)
         return data
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            input_features = list(self.lower_bounds_.keys())
+        return np.asarray(input_features, dtype=object)
