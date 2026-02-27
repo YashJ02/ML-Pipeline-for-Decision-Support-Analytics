@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ML Pipeline Frontend</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    .left-column, .right-column {
+      min-width: 0;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    @media (max-width: 760px) {
+      .row { grid-template-columns: 1fr; }
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: Consolas, monospace;
+    }
+    button {
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      border: none;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: #4b5563;
+    }
+    .actions {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+    }
+    @media (max-width: 760px) {
+      .actions { grid-template-columns: 1fr; }
+    }
+    pre {
+      background: #111827;
+      color: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      min-height: 180px;
+      margin: 0;
+    }
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .badge-neutral {
+      background: #e5e7eb;
+      color: #374151;
+    }
+    .badge-success {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .badge-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .sticky {
+      position: sticky;
+      top: 16px;
+    }
+    .metric-chart {
+      display: grid;
+      gap: 8px;
+    }
+    .metric-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: #374151;
+    }
+    .bar-wrap {
+      height: 10px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      grid-column: 1 / -1;
+    }
+    .bar {
+      height: 100%;
+      background: #2563eb;
+      width: 0;
+      transition: width 0.25s ease;
+    }
+    .bar-test {
+      background: #16a34a;
+    }
+    .viz-note {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+    @media (max-width: 960px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .sticky {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ML Pipeline UI</h1>
+    <p class="muted">Use this page to call your FastAPI endpoints without curl/Postman.</p>
+
+    <div class="layout">
+      <div class="left-column">
+        <div class="card">
+          <div class="row">
+            <div>
+              <label for="apiToken">API Token</label>
+              <input id="apiToken" value="dev-token" />
+            </div>
+            <div>
+              <label for="apiBase">API Base URL</label>
+              <input id="apiBase" value="" placeholder="Leave empty to use same host" />
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>1) Upload Dataset</h3>
+          <div class="row">
+            <div>
+              <label for="csvFile">CSV File</label>
+              <input id="csvFile" type="file" accept=".csv" />
+            </div>
+            <div>
+              <label for="uploadTarget">Target Column (optional)</label>
+              <input id="uploadTarget" placeholder="target" />
+            </div>
+          </div>
+          <div style="margin-top:10px;"><button id="btnUpload">Upload</button></div>
+        </div>
+
+        <div class="card">
+          <h3>2) Run Pipeline / Train Model</h3>
+          <div class="row">
+            <div>
+              <label for="demoDataset">Demo Dataset</label>
+              <select id="demoDataset">
+                <option value="">Use latest uploaded dataset</option>
+                <option value="data/raw/sample_classification.csv">sample_classification.csv</option>
+                <option value="data/raw/demo_classification.csv">demo_classification.csv</option>
+                <option value="data/raw/demo_regression.csv">demo_regression.csv</option>
+                <option value="data/raw/demo_finance_classification.csv">demo_finance_classification.csv</option>
+              </select>
+            </div>
+            <div>
+              <label for="targetColumn">Target Column</label>
+              <input id="targetColumn" value="target" />
+            </div>
+            <div>
+              <label for="taskType">Task Type</label>
+              <select id="taskType">
+                <option value="auto">auto</option>
+                <option value="classification" selected>classification</option>
+                <option value="regression">regression</option>
+              </select>
+            </div>
+            <div>
+              <label for="models">Models (comma separated, optional)</label>
+              <input id="models" value="logistic_regression,random_forest" />
+            </div>
+            <div>
+              <label for="testSize">Test Size</label>
+              <input id="testSize" type="number" step="0.01" value="0.2" />
+            </div>
+            <div>
+              <label for="valSize">Validation Size</label>
+              <input id="valSize" type="number" step="0.01" value="0.1" />
+            </div>
+          </div>
+          <div class="actions" style="margin-top:10px;">
+            <button id="btnRun">Run Pipeline</button>
+            <button id="btnTrain" class="secondary">Train Model</button>
+            <button id="btnStatus" class="secondary">Get Status</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>3) Evaluate + Predict</h3>
+          <div class="actions" style="margin-bottom:10px;">
+            <button id="btnEvaluate" class="secondary">Evaluate Latest</button>
+            <button id="btnExperiments" class="secondary">List Experiments</button>
+          </div>
+          <label for="predictRecords">Predict Records (JSON array)</label>
+          <textarea id="predictRecords">[
+  {
+    "feature1": 4.8,
+    "feature2": 2.3,
+    "feature3": 1.6,
+    "feature4": 0.3,
+    "category": "A"
+  }
+]</textarea>
+          <div style="margin-top:10px;"><button id="btnPredict">Predict</button></div>
+        </div>
+      </div>
+
+      <div class="right-column">
+        <div class="card sticky">
+          <div class="status-row">
+            <h3 style="margin:0;">Response</h3>
+            <span id="statusBadge" class="badge badge-neutral">Idle</span>
+          </div>
+          <pre id="output">Ready.</pre>
+
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;" />
+          <h3 style="margin:0 0 10px 0;">Metrics Visuals</h3>
+          <div id="metricsEmpty" class="muted">Run or evaluate a model to see charts.</div>
+
+          <div id="metricsPanel" style="display:none;">
+            <div class="metric-chart" id="validationChart"></div>
+            <div style="height:10px;"></div>
+            <div class="metric-chart" id="testChart"></div>
+            <div style="height:10px;"></div>
+            <div class="metric-chart" id="cvChart"></div>
+            <div class="viz-note">Blue = validation/CV, Green = test. Values are normalized to 0-1 for quick visual comparison.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const output = document.getElementById("output");
+    const statusBadge = document.getElementById("statusBadge");
+    const metricsEmpty = document.getElementById("metricsEmpty");
+    const metricsPanel = document.getElementById("metricsPanel");
+    const validationChart = document.getElementById("validationChart");
+    const testChart = document.getElementById("testChart");
+    const cvChart = document.getElementById("cvChart");
+
+    function setBadge(state, text) {
+      statusBadge.className = "badge";
+      if (state === "success") {
+        statusBadge.classList.add("badge-success");
+      } else if (state === "error") {
+        statusBadge.classList.add("badge-error");
+      } else {
+        statusBadge.classList.add("badge-neutral");
+      }
+      statusBadge.textContent = text;
+    }
+
+    function baseUrl() {
+      const value = document.getElementById("apiBase").value.trim();
+      return value || window.location.origin;
+    }
+
+    function authHeaders(extra = {}) {
+      const token = document.getElementById("apiToken").value.trim();
+      return {
+        Authorization: `Bearer ${token}`,
+        ...extra,
+      };
+    }
+
+    function showResult(label, payload) {
+      setBadge("success", "Success");
+      output.textContent = `${label}\n\n${JSON.stringify(payload, null, 2)}`;
+      renderMetrics(payload);
+    }
+
+    function showError(error) {
+      setBadge("error", "Error");
+      output.textContent = `Error\n\n${error}`;
+      clearMetrics();
+    }
+
+    function clearMetrics() {
+      metricsPanel.style.display = "none";
+      metricsEmpty.style.display = "block";
+      validationChart.innerHTML = "";
+      testChart.innerHTML = "";
+      cvChart.innerHTML = "";
+    }
+
+    function metricItemHtml(label, value, isTest = false) {
+      const safeValue = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+      const pct = (safeValue * 100).toFixed(1);
+      const exact = Number.isFinite(value) ? value.toFixed(4) : "n/a";
+      return `
+        <div class="metric-item">
+          <strong>${label}</strong>
+          <span>${exact}</span>
+          <div class="bar-wrap">
+            <div class="bar ${isTest ? "bar-test" : ""}" style="width:${pct}%"></div>
+          </div>
+        </div>
+      `;
+    }
+
+    function normalizeMetric(name, value) {
+      if (!Number.isFinite(value)) return null;
+      const metric = String(name).toLowerCase();
+      if (metric.includes("rmse") || metric.includes("mae") || metric.includes("mse")) {
+        return 1 / (1 + Math.max(0, value));
+      }
+      return value;
+    }
+
+    function renderMetricGroup(container, title, metrics, isTest = false) {
+      const entries = Object.entries(metrics || {})
+        .map(([name, raw]) => [name, normalizeMetric(name, Number(raw))])
+        .filter(([, value]) => value !== null);
+
+      if (!entries.length) {
+        container.innerHTML = "";
+        return false;
+      }
+
+      container.innerHTML = `<div class="muted" style="margin-bottom:6px;">${title}</div>` +
+        entries.map(([name, value]) => metricItemHtml(name, value, isTest)).join("");
+      return true;
+    }
+
+    function renderMetrics(payload) {
+      const metrics = payload?.metrics;
+      if (!metrics) {
+        clearMetrics();
+        return;
+      }
+
+      const hasValidation = renderMetricGroup(validationChart, "Validation metrics", metrics.validation_metrics, false);
+      const hasTest = renderMetricGroup(testChart, "Test metrics", metrics.test_metrics, true);
+
+      const cvValueRaw = Number(metrics.cross_validation_score);
+      const cvValue = normalizeMetric("cross_validation_score", cvValueRaw);
+      if (cvValue !== null) {
+        cvChart.innerHTML = `<div class="muted" style="margin-bottom:6px;">Cross-validation score</div>${metricItemHtml("cross_validation_score", cvValue, false)}`;
+      } else {
+        cvChart.innerHTML = "";
+      }
+
+      if (!hasValidation && !hasTest && cvValue === null) {
+        clearMetrics();
+        return;
+      }
+
+      metricsEmpty.style.display = "none";
+      metricsPanel.style.display = "block";
+    }
+
+    async function callJson(path, options = {}) {
+      const response = await fetch(`${baseUrl()}${path}`, options);
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        data = { raw: text };
+      }
+      if (!response.ok) {
+        throw new Error(data.detail || JSON.stringify(data));
+      }
+      return data;
+    }
+
+    function buildTrainPayload() {
+      const modelsRaw = document.getElementById("models").value.trim();
+      const models = modelsRaw
+        ? modelsRaw.split(",").map((item) => item.trim()).filter(Boolean)
+        : null;
+      const selectedDataset = document.getElementById("demoDataset").value;
+
+      const payload = {
+        target_column: document.getElementById("targetColumn").value.trim(),
+        task_type: document.getElementById("taskType").value,
+        models,
+        test_size: Number(document.getElementById("testSize").value),
+        val_size: Number(document.getElementById("valSize").value),
+      };
+
+      if (selectedDataset) {
+        payload.dataset_path = selectedDataset;
+      }
+
+      return payload;
+    }
+
+    document.getElementById("btnUpload").addEventListener("click", async () => {
+      try {
+        const file = document.getElementById("csvFile").files[0];
+        if (!file) {
+          throw new Error("Choose a CSV file first.");
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        const target = document.getElementById("uploadTarget").value.trim();
+        if (target) {
+          formData.append("target_column", target);
+        }
+
+        const response = await fetch(`${baseUrl()}/data/upload`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: formData,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || JSON.stringify(data));
+        }
+        showResult("Upload success", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnRun").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/pipeline/run", {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(buildTrainPayload()),
+        });
+        showResult("Pipeline run success", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnTrain").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/model/train", {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify(buildTrainPayload()),
+        });
+        showResult("Train success", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnStatus").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/pipeline/status", {
+          method: "GET",
+          headers: authHeaders(),
+        });
+        showResult("Status", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnEvaluate").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/model/evaluate", {
+          method: "GET",
+          headers: authHeaders(),
+        });
+        showResult("Evaluate", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnExperiments").addEventListener("click", async () => {
+      try {
+        const data = await callJson("/experiments", {
+          method: "GET",
+          headers: authHeaders(),
+        });
+        showResult("Experiments", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+
+    document.getElementById("btnPredict").addEventListener("click", async () => {
+      try {
+        const records = JSON.parse(document.getElementById("predictRecords").value);
+        const data = await callJson("/model/predict", {
+          method: "POST",
+          headers: authHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ records }),
+        });
+        showResult("Predict", data);
+      } catch (error) {
+        showError(error.message || String(error));
+      }
+    });
+  </script>
+</body>
+</html>

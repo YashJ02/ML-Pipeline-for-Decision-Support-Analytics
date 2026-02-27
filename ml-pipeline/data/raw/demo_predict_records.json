@@ -1,0 +1,16 @@
+[
+  {
+    "feature1": 5.4,
+    "feature2": 3.4,
+    "feature3": 1.7,
+    "feature4": 0.2,
+    "category": "A"
+  },
+  {
+    "feature1": 6.5,
+    "feature2": 2.9,
+    "feature3": 5.2,
+    "feature4": 2.0,
+    "category": "C"
+  }
+]

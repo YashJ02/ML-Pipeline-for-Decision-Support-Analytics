@@ -17,11 +17,11 @@ Production-oriented, modular ML pipeline with FastAPI endpoints for ingestion, t
 ```text
 ml-pipeline/
 +-- app/
-¦   +-- api/
-¦   +-- core/
-¦   +-- models/
-¦   +-- pipelines/
-¦   +-- utils/
+ï¿½   +-- api/
+ï¿½   +-- core/
+ï¿½   +-- models/
+ï¿½   +-- pipelines/
+ï¿½   +-- utils/
 +-- data/
 +-- experiments/
 +-- notebooks/
@@ -32,6 +32,8 @@ ml-pipeline/
 ```
 
 ## Setup
+Use Python `3.11` or `3.12` for this project. On Windows, Python `3.14` can trigger source builds for `pandas`/`scikit-learn`, causing very high CPU usage and apparent freezing during `pip install`.
+
 ```bash
 cd ml-pipeline
 python -m venv .venv
@@ -49,6 +51,10 @@ Run API:
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+
+Open frontend UI:
+- `http://127.0.0.1:8000/`
+- API docs remain at `http://127.0.0.1:8000/docs`
 
 ## Authentication
 Every protected endpoint requires:
